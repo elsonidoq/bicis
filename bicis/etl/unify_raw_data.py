@@ -18,12 +18,19 @@ class UnifyRawData(luigi.Task):
 
         writer = None
         with self.output().open('w') as out_stream:
-            for fname in tqdm(fnames, desc='files to process'):
+            for i, fname in enumerate(tqdm(fnames, desc='files to process')):
                 for doc in tqdm(iter_fname(fname), desc='processing rows'):
+
                     if writer is None:
                         writer = csv.DictWriter(out_stream, doc.keys())
                         writer.writeheader()
-                    writer.writerow(doc)
+
+                    for date_field in 'rent_date return_date'.split():
+                        if date_field not in doc: break
+                        doc[date_field] = doc[date_field].strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        # only write docs with both date fields
+                        writer.writerow(doc)
 
 
 if __name__ == '__main__':
