@@ -67,8 +67,22 @@ def parse_duration(d):
         return timedelta(hours=h, seconds=s)
 
 
+def parse_date(date_string):
+    date_formats = ['%d/%m/%Y %H:%M', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S.%f']
+
+    for date_format in date_formats:
+        try:
+            return datetime.strptime(date_string.strip(), date_format)
+        except ValueError:
+            pass
+
+    import ipdb;ipdb.set_trace()
+    raise ValueError('Could not parse date')
+
+
 def format_reader(csv_reader, row_mapping=None):
     row_mapping = row_mapping or {}
+
 
     for li_no, doc in enumerate(csv_reader):
         doc = {k.lower().strip(): v for k, v in doc.iteritems()}
@@ -79,23 +93,19 @@ def format_reader(csv_reader, row_mapping=None):
             if v.isdigit(): v = int(v)
             new_doc[row_mapping.get(k, k)] = v
 
+        field_with_date_error = None
         for field in 'rent_date return_date'.split():
             if field not in new_doc: continue
-            errors = 0
 
             # sometimes there's a different format for each field
-            for date_format in ['%d/%m/%Y %H:%M','%Y-%m-%d %H:%M:%S.%f']:
-                try:
-                    new_doc[field] = datetime.strptime(new_doc[field], date_format)
-                    break
-                except ValueError, e:
-                    errors += 1
-
-            if errors == 2:
+            try:
+                new_doc[field] = parse_date(new_doc[field])
+            except ValueError:
+                field_with_date_error = field, new_doc[field]
                 break
 
-        if errors == 2:
-            print "Could not parse doc"
+        if field_with_date_error:
+            print "Could not parse date field {} with value {}".format(*field_with_date_error)
             continue
 
         if 'duration' in new_doc:
