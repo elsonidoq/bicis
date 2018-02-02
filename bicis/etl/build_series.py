@@ -35,11 +35,11 @@ class SeriesBuilder(PySparkTask):
             spark_sql
                 .read
                 .load(
-                self.input().path,  # .replace('.csv', '_sample.csv'),
-                format="csv",
-                sep=",",
-                inferSchema="true",
-                header="true")
+                    self.input().path,  # .replace('.csv', '_sample.csv'),
+                    format="csv",
+                    sep=",",
+                    inferSchema="true",
+                    header="true")
                 .rdd
                 .map(_translate_doc)
                 .toDF()
