@@ -15,7 +15,7 @@ def _translate_doc(doc):
         res[date_field + '_day'] = doc[date_field].date()
         res[date_field + '_hour'] = doc[date_field].hour
         res[date_field + '_weekday'] = doc[date_field].isoweekday()
-        res[date_field + '_month'] = doc[date_field].month
+        res[date_field + '_month'] = doc[date_field].replace(day=1).date()
     return Row(**res)
 
 class BuildAllSeries(luigi.WrapperTask):
@@ -30,15 +30,16 @@ class SeriesBuilder(PySparkTask):
 
     def main(self, sc, *args):
         spark_sql = SparkSession.builder.getOrCreate()
+
         general_df = (
             spark_sql
                 .read
                 .load(
-                    self.input().path,#.replace('.csv', '_sample.csv'),
-                    format="csv",
-                    sep=",",
-                    inferSchema="true",
-                    header="true")
+                self.input().path,  # .replace('.csv', '_sample.csv'),
+                format="csv",
+                sep=",",
+                inferSchema="true",
+                header="true")
                 .rdd
                 .map(_translate_doc)
                 .toDF()
@@ -67,7 +68,7 @@ class SeriesBuilder(PySparkTask):
             n_rents
             .join(n_returns, ['station', self.key])
             .write
-            .csv(self.output().path)
+            .csv(self.output().path, header='true')
         )
 
     def output(self):
