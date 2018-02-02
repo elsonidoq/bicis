@@ -1,13 +1,7 @@
-from datetime import datetime, timedelta
-import pandas as pd
-from itertools import chain
-
-from tqdm import tqdm
-from glob import glob
-import os
 import csv
+import os
 import re
-
+from datetime import datetime, timedelta
 
 STRICT_MAPPING = True
 dp = re.compile('\d+')
