@@ -76,7 +76,6 @@ def parse_date(date_string):
         except ValueError:
             pass
 
-    import ipdb;ipdb.set_trace()
     raise ValueError('Could not parse date')
 
 
@@ -90,6 +89,7 @@ def format_reader(csv_reader, row_mapping=None):
         new_doc = {}
         for k, v in doc.iteritems():
             if k not in row_mapping and STRICT_MAPPING: continue
+            v = v.strip()
             if v.isdigit(): v = int(v)
             new_doc[row_mapping.get(k, k)] = v
 
