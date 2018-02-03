@@ -9,15 +9,27 @@ from bicis.etl.build_series import SeriesBuilder
 
 
 class CompositeBuilder(object):
-    def __init__(self, hour_features_builder):
-        self.hour_features_builder = hour_features_builder
+    builder_classes = []
+
+    def __init__(self, *builders):
+        self.builders = builders
 
     @classmethod
     def build(cls):
-        return cls(HourFeaturesBuilder.build())
+        return cls(*[b.build() for b in cls.builder_classes])
 
     def get_features(self, station, timestamp):
-        return self.hour_features_builder.get_features(station, timestamp)
+        res = {}
+        for builder in self.builders:
+            out = builder.get_features(station, timestamp)
+
+            overlap = set(out).intersection(res)
+            if overlap:
+                raise RuntimeError("There's an overlap between features {}".format(', '.join(overlap)))
+
+            res.update(out)
+
+        return Row(**res)
 
 
 def shift_series(series, steps, window_size):
