@@ -98,3 +98,12 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+#data directory
+data/
+
+#zip files
+*.zip
+
+#stupid mac file
+.DS_Store
