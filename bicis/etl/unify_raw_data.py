@@ -4,17 +4,20 @@ from glob import glob
 import luigi
 from tqdm import tqdm
 
-from bicis.lib.data_paths import data_dir
+from bicis.etl.get_raw_data import DownloadRawData
+from bicis.lib.data_paths import data_dir, trajectories_dir
 from bicis.lib.parse_raw_data import iter_fname
 
 
 class UnifyRawData(luigi.Task):
+    def requires(self):
+        return DownloadRawData()
 
     def output(self):
         return luigi.LocalTarget(os.path.join(data_dir, 'unified_data.csv'))
 
     def run(self):
-        fnames = glob(os.path.join(data_dir, 'bicicletas-publicas/recorridos-realizados-*csv'))
+        fnames = glob(os.path.join(trajectories_dir, 'recorridos-realizados-*csv'))
 
         writer = None
         with self.output().open('w') as out_stream:
