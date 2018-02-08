@@ -1,0 +1,2 @@
+features_builder:
+  type: bicis.lib.feature_builders:HourFeaturesBuilder
