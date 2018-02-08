@@ -3,7 +3,7 @@ import traceback
 import yaml
 
 
-class Loader(object):
+class ObjectLoader(object):
     def __init__(self, bindings):
         self.bindings = {}
         self.instances = {}
