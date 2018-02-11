@@ -8,6 +8,10 @@ from bicis.lib.data_paths import scripts_dir, trajectories_dir, stations_dir
 
 
 class DownloadRawData(ExternalProgramTask):
+    """
+    Downloads the trajectories and stations data from https://data.buenosaires.gob.ar/dataset/bicicletas-publicas
+    """
+
     def program_args(self):
         return [
             find_executable('bash'),

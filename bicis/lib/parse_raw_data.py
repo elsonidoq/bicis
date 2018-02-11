@@ -9,32 +9,32 @@ here = os.path.dirname(__file__)
 
 fields_v1 = dict(
     origenfecha='rent_date',
-    nombreorigen='src_station',
+    nombreorigen='rent_station',
     destinofecha='return_date',
-    nombredestino='dst_station',
+    nombredestino='return_station',
     tiempouso='duration'
 )
 
 fields_v2 = dict(
     origenfecha='rent_date',
-    origennombre='src_station',
+    origennombre='rent_station',
     destinofecha='return_date',
-    destinonombre='dst_station',
+    destinonombre='return_station',
     tiempouso='duration'
 )
 
 fields_v3 = dict(
     origen_fecha='rent_date',
     destino_fecha='return_date',
-    nombre_origen='src_station',
-    destino_estacion='dst_station',
+    nombre_origen='rent_station',
+    destino_estacion='return_station',
 )
 
 fields_v4 = dict(
     fecha_hora_retiro='rent_date',
     tiempo_uso='duration',
-    nombre_origen='src_station',
-    nombre_destino='dst_station',
+    nombre_origen='rent_station',
+    nombre_destino='return_station',
 )
 
 row_mappings = {

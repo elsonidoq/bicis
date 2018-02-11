@@ -1,3 +1,6 @@
+from bson import json_util
+from pyspark import StorageLevel
+
 from bicis.lib.utils import get_logger
 logger = get_logger(__name__)
 
@@ -45,61 +48,65 @@ class BuildFeaturesDataset(PySparkTask):
 
         spark_sql = SparkSession.builder.getOrCreate()
 
-        df = (
+        input_df = (
             spark_sql
                 .read
                 .load(
-                self.input()['raw_data'].path,
-                format="csv",
-                sep=",",
-                inferSchema="true",
-                header="true"
-            )
-        )
-
-        features_df = (
-            df
-            # There are some null rows
-            # TODO: check whether this is a parsing error
-            .filter(df.src_station.isNotNull())
-            .rdd
-            .map(lambda x: self.feature_builder.get_features(x['src_station'], x['rent_date']))
-        )
-
-        logger.info('Saving dataset')
-        (
-            features_df
-            # Filter out the ones that failed
-            .filter(lambda x: x is not None)
-            .toDF()
-            .write
-            .csv(self.output()['features'].path, header='true')
-        )
-
-        logger.info('Collecting stats')
-        # TODO: Is it possible to piggy back this computation on the previous one?
-        output_count = (
-                spark_sql
-                .read
-                .load(
-                    self.output()['features'].path,
+                    self.input()['raw_data'].path,
                     format="csv",
                     sep=",",
                     inferSchema="true",
                     header="true"
-                )
-        ).count()
-        input_count = df.count()
-
-        with self.output()['fails'].open('w') as f:
-            json.dump(
-                {
-                    'input_count': input_count,
-                    'output_count': output_count,
-                    'number_of_errors': output_count - input_count
-                },
-                f, indent=2
             )
+        )
+
+        features_rdd = (
+            input_df
+            # There are some null rows
+            # TODO: check whether this is a parsing error
+            .filter(input_df.rent_station.isNotNull())
+            .rdd
+            .map(lambda x: (x['id'], self.feature_builder.get_features(x['rent_station'], x['rent_date'])))
+            .persist(StorageLevel.DISK_ONLY)
+        )
+
+        output = (
+            features_rdd
+            # Filter out the ones that failed
+            .filter(lambda x: x[1] is not None)
+            .map(lambda x: x[1])
+            .toDF()
+        )
+
+        if not self.output()['features'].exists():
+            logger.info('Saving dataset')
+
+            output.write.csv(self.output()['features'].path, header='true')
+
+        if not self.output()['fails'].exists():
+            logger.info('Collecting some fails')
+
+            output_count = output.count()
+            input_count = input_df.count()
+            error_ids = (
+                features_rdd
+                .filter(lambda x:x[1] is None)
+                .map(lambda x: x[0])
+                .take(100)
+            )
+
+            with self.output()['fails'].open('w') as f:
+                json.dump(
+                    {
+                        'input_count': input_count,
+                        'output_count': output_count,
+                        'number_of_errors': input_count - output_count,
+                        'error_ids': error_ids
+                    },
+                    f, indent=2,
+                    # used to make datetime serializable
+                    default=json_util.default
+                )
 
         logger.info('Done')
 
