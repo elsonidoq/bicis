@@ -1,3 +1,5 @@
+from abc import abstractmethod, ABCMeta
+
 from bicis.lib.utils import get_logger
 logger = get_logger(__name__)
 
@@ -13,16 +15,33 @@ from bicis.lib.utils import head
 
 redis_client = redis.StrictRedis()
 
-class CompositeBuilder(object):
+class FeatureBuilder:
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def get_features(self, raw_doc):
+        """
+        :param raw_doc: A dictionary from the output of bicis.etl.UnifyRawData
+        """
+
+    def requires(self):
+        """
+        Specifies requirements for this feature builder to run. This requirements are luigi tasks
+        that the BuildDataset task adds to its requirements
+        :return:
+        """
+        return []
+
+class CompositeBuilder(FeatureBuilder):
     builder_classes = []
 
     def __init__(self, *builders):
         self.builders = builders
 
-    def get_features(self, station, timestamp):
+    def get_features(self, raw_doc):
         res = {}
         for builder in self.builders:
-            out = builder.get_features(station, timestamp)
+            out = builder.get_features(raw_doc)
 
             overlap = set(out).intersection(res)
             if overlap:
@@ -36,11 +55,19 @@ class CompositeBuilder(object):
         return flatten([b.requires() for b in self.builders])
 
 
-class HourFeaturesBuilder(object):
-    def __init__(self):
+class HourFeaturesBuilder(FeatureBuilder):
+    def __init__(self, mode='rent', window_size=24):
+        # TODO: check whether it makes sense to keep the `mode` parameter
+        """
+        :param mode: whether to use the `rent` fields or the `return` fields on the raw_doc
+        """
+        self.window_size = window_size
+        self.mode = mode
         self._ensure_structure()
 
-    def get_features(self, station, timestamp, window_size=24):
+    def get_features(self, raw_doc):
+        station = raw_doc[self.mode + '_station']
+        timestamp = raw_doc[self.mode + '_date']
         hour = timestamp.hour
 
         # e.g. for hour=3 generates indices 2, 1, 0, 24, 23, ...
@@ -49,7 +76,7 @@ class HourFeaturesBuilder(object):
                 xrange(hour-1, -1, -1),
                 xrange(24-1, hour-1, -1)
             ),
-            window_size
+            self.window_size
         )
 
         res = {}
