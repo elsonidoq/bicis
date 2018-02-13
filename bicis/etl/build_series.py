@@ -29,6 +29,12 @@ class SeriesBuilder(PySparkTask):
     """
     key = luigi.ChoiceParameter(choices=['weekday', 'hour', 'day', 'month'])
 
+    def output(self):
+        return luigi.LocalTarget(os.path.join(data_dir, 'rents_by_{}.csv'.format(self.key)))
+
+    def requires(self):
+        return UnifyRawData()
+
     def main(self, sc, *args):
         spark_sql = SparkSession.builder.getOrCreate()
 
@@ -72,11 +78,6 @@ class SeriesBuilder(PySparkTask):
             .csv(self.output().path, header='true')
         )
 
-    def output(self):
-        return luigi.LocalTarget(os.path.join(data_dir, 'rents_by_{}.csv'.format(self.key)))
-
-    def requires(self):
-        return UnifyRawData()
 
 def _translate_doc(doc):
     res = doc.asDict()
