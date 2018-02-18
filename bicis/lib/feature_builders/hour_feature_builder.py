@@ -1,13 +1,11 @@
-from abc import abstractmethod, ABCMeta
-
+from bicis.lib.feature_builders.base_builders import FeatureBuilder
 from bicis.lib.utils import get_logger
 logger = get_logger(__name__)
 
 from itertools import chain
 
 import redis
-from luigi.task import flatten
-from pyspark import Row, SparkContext
+from pyspark import Row
 from pyspark.sql import SparkSession
 
 from bicis.etl.build_series import SeriesBuilder
@@ -15,55 +13,15 @@ from bicis.lib.utils import head
 
 redis_client = redis.StrictRedis()
 
-class FeatureBuilder:
-    __metaclass__ = ABCMeta
-
-    @abstractmethod
-    def get_features(self, raw_doc):
-        """
-        :param raw_doc: A dictionary from the output of bicis.etl.UnifyRawData
-        """
-
-    def requires(self):
-        """
-        Specifies requirements for this feature builder to run. This requirements are luigi tasks
-        that the BuildDataset task adds to its requirements
-        :return:
-        """
-        return []
-
-class CompositeBuilder(FeatureBuilder):
-    builder_classes = []
-
-    def __init__(self, *builders):
-        self.builders = builders
-
-    def get_features(self, raw_doc):
-        res = {}
-        for builder in self.builders:
-            out = builder.get_features(raw_doc)
-
-            overlap = set(out).intersection(res)
-            if overlap:
-                raise RuntimeError("There's an overlap between features {}".format(', '.join(overlap)))
-
-            res.update(out)
-
-        return Row(**res)
-
-    def requires(self):
-        return flatten([b.requires() for b in self.builders])
-
 
 class HourFeaturesBuilder(FeatureBuilder):
+    # TODO: check whether it makes sense to keep the `mode` parameter
     def __init__(self, mode='rent', window_size=24):
-        # TODO: check whether it makes sense to keep the `mode` parameter
         """
         :param mode: whether to use the `rent` fields or the `return` fields on the raw_doc
         """
         self.window_size = window_size
         self.mode = mode
-        self._ensure_structure()
 
     def get_features(self, raw_doc):
         station = raw_doc[self.mode + '_station']
@@ -83,10 +41,10 @@ class HourFeaturesBuilder(FeatureBuilder):
         for i, hour in enumerate(indices):
             hour_data = redis_client.hgetall(self._get_station_hour_key(hour, station))
             try:
-                res['n_rents_{}_hb'.format(i)] = int(hour_data['n_rents'])
-                res['n_returns_{}_hb'.format(i)] = int(hour_data['n_returns'])
+                res['n_rents_{}_hb'.format(i)] = float(hour_data['n_rents'])
+                res['n_returns_{}_hb'.format(i)] = float(hour_data['n_returns'])
             except Exception, e:
-                logger.warn('station {} on hour {} has a weird thing'.format(station, hour))
+                logger.warn(u'station {} on hour {} has a weird thing'.format(station, hour))
                 return
 
         # XXX should it return the dict or the row?
@@ -101,8 +59,8 @@ class HourFeaturesBuilder(FeatureBuilder):
         """
         return SeriesBuilder(key='hour')
 
-    def _ensure_structure(self):
-        if redis_client.get('HourFeaturesBuilder.done'):
+    def ensure_structure(self, force=False):
+        if redis_client.get('HourFeaturesBuilder.done') and not force:
             return
 
         spark_sql = SparkSession.builder.getOrCreate()
@@ -128,8 +86,8 @@ class HourFeaturesBuilder(FeatureBuilder):
 
             for hour, n_rents in rent_data.iteritems():
                 doc = {
-                    'n_rents': int(n_rents),
-                    'n_returns': int(returns_data[hour])
+                    'n_rents': float(n_rents),
+                    'n_returns': float(returns_data[hour])
                 }
 
                 redis_client.hmset(
@@ -139,4 +97,3 @@ class HourFeaturesBuilder(FeatureBuilder):
 
 
         redis_client.set('HourFeaturesBuilder.done', 1)
-
