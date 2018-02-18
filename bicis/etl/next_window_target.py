@@ -42,7 +42,7 @@ class NextWindowTarget(PySparkTask):
         (
             SparkSession.builder.getOrCreate()
             .read.load(
-                self.input().path.replace('.csv', '_10k.csv'),
+                self.input().path,
                 format="csv",
                 sep=",",
                 inferSchema="true",
