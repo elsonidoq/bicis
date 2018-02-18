@@ -1,4 +1,5 @@
 import os
+from functools import partial
 
 from pyspark.sql import Row
 import luigi
@@ -27,7 +28,7 @@ class SeriesBuilder(PySparkTask):
 
     Outputs a csv file with this columns: [station, <key>, n_rents, n_returns]
     """
-    key = luigi.ChoiceParameter(choices=['weekday', 'hour', 'day', 'month'])
+    key = luigi.ChoiceParameter(choices=['weekday', 'hour', 'month'])
 
     def output(self):
         return luigi.LocalTarget(os.path.join(data_dir, 'rents_by_{}.csv'.format(self.key)))
@@ -48,27 +49,29 @@ class SeriesBuilder(PySparkTask):
                     inferSchema="true",
                     header="true")
                 .rdd
-                .map(_translate_doc)
+                .map(partial(_add_keys, key=self.key))
                 .toDF()
         )
 
 
         n_rents = (
             general_df
-            .groupBy('rent_station', 'rent_date_' + self.key)
+            .groupBy('rent_station', 'group_by', self.key)
             .count()
-            .withColumnRenamed('count', 'n_rents')
+            .groupBy('rent_station', self.key)
+            .mean('count')
+            .withColumnRenamed('avg(count)', 'n_rents')
             .withColumnRenamed('rent_station', 'station')
-            .withColumnRenamed('rent_date_' + self.key, self.key)
         )
 
         n_returns = (
             general_df
-            .groupBy('return_station', 'return_date_' + self.key)
+            .groupBy('return_station', 'group_by', self.key)
             .count()
-            .withColumnRenamed('count', 'n_returns')
+            .groupBy('return_station', self.key)
+            .mean('count')
+            .withColumnRenamed('avg(count)', 'n_returns')
             .withColumnRenamed('return_station', 'station')
-            .withColumnRenamed('return_date_' + self.key, self.key)
         )
 
         (
@@ -79,13 +82,27 @@ class SeriesBuilder(PySparkTask):
         )
 
 
-def _translate_doc(doc):
+def _add_keys(doc, key):
     res = doc.asDict()
     for date_field in 'rent_date return_date'.split():
-        res[date_field + '_day'] = doc[date_field].date()
-        res[date_field + '_hour'] = doc[date_field].hour
-        res[date_field + '_weekday'] = doc[date_field].isoweekday()
-        res[date_field + '_month'] = doc[date_field].replace(day=1).date()
+        # TODO: hacer que _translate_doc tome el key
+        # y le meta al doc una key 'group_by' y 'resulting_key'
+        # if key == 'day_of_month':
+        #     res['group_by'] = doc[date_field].date()
+        #     res['resulting_key'] = doc[date_field].
+        #
+        # res[date_field + '_day_of_month'] = doc[date_field].date()
+
+        if key == 'weekday':
+            res['group_by'] = doc[date_field].isocalendar()[:2]
+            res[key] = doc[date_field].isoweekday()
+        elif key == 'month':
+            res['group_by'] = doc[date_field].replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            res[key] = doc[date_field].month
+        elif key == 'hour':
+            res['group_by'] = doc[date_field].replace(minute=0, second=0, microsecond=0)
+            res[key] = doc[date_field].hour
+
     return Row(**res)
 
 
