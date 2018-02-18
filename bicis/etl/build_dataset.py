@@ -22,7 +22,7 @@ class BuildDataset(PySparkTask):
 
     @property
     def object_loader(self):
-        return ObjectLoader.from_yaml(self.features_config_fname)
+        return ObjectLoader.from_yaml(self.config_fname)
 
     @property
     def feature_builder(self):
@@ -45,7 +45,7 @@ class BuildDataset(PySparkTask):
         }
 
     def output(self):
-        fname = os.path.basename(self.features_config_fname.replace('.yaml', ''))
+        fname = os.path.basename(self.config_fname.replace('.yaml', ''))
         fname_prefix = os.path.join(data_dir, fname)
         return {
             'dataset': luigi.LocalTarget(fname_prefix + '_dataset.csv'),
@@ -54,44 +54,20 @@ class BuildDataset(PySparkTask):
 
     def main(self, sc, *args):
         logger.info('Starting building features')
-
         spark_sql = SparkSession.builder.getOrCreate()
 
-        input_df = (
-            spark_sql
-                .read
-                .load(
-                    self.input()['raw_data'].path,
-                    format="csv",
-                    sep=",",
-                    inferSchema="true",
-                    header="true"
-            )
-        )
+        input_df = self.get_input_df(spark_sql)
+        features_rdd = self.get_features_rdd(input_df)
 
-        features_rdd = (
-            input_df
-            # There are some null rows
-            # TODO: check whether this is a parsing error
-            .filter(input_df.rent_station.isNotNull())
-            .rdd
-            .map(lambda x: (x['id'], self.feature_builder.get_features(x)))
-            .persist(StorageLevel.DISK_ONLY)
-        )
-
-        target_rdd = (
-            input_df
-                # There are some null rows
-                # TODO: check whether this is a parsing error
-                .filter(input_df.rent_station.isNotNull())
-                .rdd
-                .map(lambda x: (x['id'], self.target_builder.get_features(x)))
-                .persist(StorageLevel.DISK_ONLY)
-        )
+        target_rdd = self.get_target_rdd(input_df)
 
         full_dataset_rdd = (
             features_rdd
             .join(target_rdd)
+            # there are some rows without features
+            # TODO: fix this
+            .filter(lambda x: x[1][0] is not None)
+
             .map(lambda (id, (features, target)): build_doc(id, features, target))
             .toDF()
         )
@@ -128,6 +104,47 @@ class BuildDataset(PySparkTask):
 
         logger.info('Done')
 
+    def get_target_rdd(self, input_df):
+        self.target_builder.ensure_structure()
+        target_rdd = (
+            input_df
+                # There are some null rows
+                # TODO: check whether this is a parsing error
+                .filter(input_df.rent_station.isNotNull())
+                .rdd
+                .map(lambda x: (x['id'], self.target_builder.get_features(x)))
+                .persist(StorageLevel.DISK_ONLY)
+        )
+        return target_rdd
+
+    def get_features_rdd(self, input_df):
+        self.feature_builder.ensure_structure()
+        features_rdd = (
+            input_df
+                # There are some null rows
+                # TODO: check whether this is a parsing error
+                .filter(input_df.rent_station.isNotNull())
+                .rdd
+                .map(lambda x: (x['id'], self.feature_builder.get_features(x)))
+                .persist(StorageLevel.DISK_ONLY)
+        )
+        return features_rdd
+
+    def get_input_df(self, spark_sql):
+        input_df = (
+            spark_sql
+                .read
+                .load(
+                self.input()['raw_data'].path,
+                format="csv",
+                sep=",",
+                inferSchema="true",
+                header="true"
+            )
+        )
+        return input_df
+
+
 def build_doc(id, features_doc, target_doc):
     """
 
@@ -141,5 +158,5 @@ def build_doc(id, features_doc, target_doc):
         'id': id,
         'target': target_doc['target']
     }
-    res.update(features_doc)
+    res.update(features_doc.asDict())
     return res

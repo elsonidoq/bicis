@@ -1,2 +1,7 @@
 features_builder:
-  type: bicis.lib.feature_builders:HourFeaturesBuilder
+  type: bicis.lib.feature_builders.hour_feature_builder:HourFeaturesBuilder
+
+target_builder:
+  type: bicis.lib.feature_builders.target_builder:TargetFeatureBuilder
+  mode: rent
+  window: 1h
