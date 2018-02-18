@@ -7,6 +7,7 @@ from tqdm import tqdm
 from bicis.etl.get_raw_data import DownloadRawData
 from bicis.lib.data_paths import data_dir, trajectories_dir
 from bicis.lib.parse_raw_data import iter_fname
+from bicis.lib.utils import load_csv_dataframe
 
 
 class UnifyRawData(luigi.Task):
@@ -20,10 +21,13 @@ class UnifyRawData(luigi.Task):
         return DownloadRawData()
 
     def output(self):
-        return luigi.LocalTarget(os.path.join(data_dir, 'unified_data.csv'))
+        return luigi.LocalTarget(os.path.join(data_dir, 'unified/full.csv'))
+
+    def load_dataframe(self, spark_sql):
+        return load_csv_dataframe(spark_sql, self.output().path)
 
     def run(self):
-        fnames = glob(os.path.join(trajectories_dir, 'recorridos-realizados-*csv'))
+        fnames = glob(os.path.join(self.input().path, 'recorridos-realizados-*csv'))
 
         writer = None
         id = 0

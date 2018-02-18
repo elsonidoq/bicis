@@ -40,14 +40,7 @@ class SeriesBuilder(PySparkTask):
         spark_sql = SparkSession.builder.getOrCreate()
 
         general_df = (
-            spark_sql
-                .read
-                .load(
-                    self.input().path,  # .replace('.csv', '_sample.csv'),
-                    format="csv",
-                    sep=",",
-                    inferSchema="true",
-                    header="true")
+                self.requires().load_dataframe(spark_sql)
                 .rdd
                 .map(partial(_add_keys, key=self.key))
                 .toDF()

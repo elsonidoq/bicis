@@ -1,38 +1,44 @@
+import zipfile
+
 import os
 from distutils.spawn import find_executable
+from urllib import urlopen
 
 import luigi
 from luigi.contrib.external_program import ExternalProgramTask
 
-from bicis.lib.data_paths import scripts_dir, trajectories_dir, stations_dir
+from bicis.lib.data_paths import scripts_dir, trajectories_dir, stations_dir, data_dir
 
 
-class DownloadRawData(ExternalProgramTask):
+class FetchFileTask(luigi.Task):
+    url = luigi.Parameter()
+    dst_path = luigi.Parameter()
+
+    def output(self):
+        return luigi.LocalTarget(self.dst_path)
+
+    def run(self):
+        with self.output().open('w') as f:
+            f.write(urlopen(self.url).read())
+
+class DownloadRawData(luigi.Task):
     """
     Downloads the trajectories and stations data from https://data.buenosaires.gob.ar/dataset/bicicletas-publicas
     """
+    def requires(self):
+        # TODO: add this is necesary https://data.buenosaires.gob.ar/api/datasets/rk7pYtZQke/download
+        return FetchFileTask(
+                'https://data.buenosaires.gob.ar/api/datasets/HJ8rdKWmJl/download',
+                os.path.join(data_dir, 'raw', 'trajectories.zip')
+            )
 
-    def program_args(self):
-        return [
-            find_executable('bash'),
-            os.path.join(scripts_dir, 'get_data.sh')
-        ]
 
     def output(self):
-        return {
-            'trajectories': luigi.LocalTarget(trajectories_dir),
-            'estaciones': luigi.LocalTarget(stations_dir)
-        }
+        return luigi.LocalTarget(os.path.join(data_dir, 'raw', 'bicicletas-publicas'))
 
-    def program_environment(self):
-        res = super(DownloadRawData, self).program_environment()
-        res['PWD'] = scripts_dir
-        return res
-
-    def _clean_output_file(self, file_object):
-        # There's a bug in luigi when the output really uses unicode
-        res = super(DownloadRawData, self)._clean_output_file(file_object)
-        return res.encode('utf8')
-
+    def run(self):
+        zip = zipfile.ZipFile(self.input().path, 'r')
+        zip.extractall(os.path.join(data_dir, 'raw'))
+        zip.close()
 
 
