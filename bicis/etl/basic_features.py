@@ -13,10 +13,11 @@ from bicis.lib.utils import load_csv_dataframe
 
 class BasicFeaturesBuilder(PySparkTask):
     """
-    Builds a series for each station.
+    Builds a series for each station that can be used as a feature vector.
     :param key: Determines the x axis of the series.
 
     Outputs a csv file with this columns: [station, <key>, n_rents, n_returns]
+    Both `n_rents` and `n_returns` on the output csv are averages on the training data
     """
     key = luigi.ChoiceParameter(choices=['weekday', 'hour', 'month'])
 
@@ -30,10 +31,10 @@ class BasicFeaturesBuilder(PySparkTask):
         spark_sql = SparkSession.builder.getOrCreate()
 
         general_df = (
-                load_csv_dataframe(spark_sql, self.requires().output()['training'].path)
-                .rdd
-                .map(partial(_add_keys, key=self.key))
-                .toDF()
+            load_csv_dataframe(spark_sql, self.requires().output()['training'].path)
+            .rdd
+            .map(partial(_add_keys, key=self.key))
+            .toDF()
         )
 
 
