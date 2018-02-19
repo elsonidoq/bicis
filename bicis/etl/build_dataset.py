@@ -13,7 +13,6 @@ import luigi
 from luigi.contrib.spark import PySparkTask
 from pyspark.sql import SparkSession
 
-from bicis.etl.unify_raw_data import UnifyRawData
 from bicis.lib.data_paths import data_dir
 from bicis.lib.object_loader import ObjectLoader
 
