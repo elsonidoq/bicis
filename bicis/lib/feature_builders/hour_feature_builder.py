@@ -1,3 +1,4 @@
+from bicis.etl.basic_features import BasicFeaturesBuilder
 from bicis.lib.feature_builders.base_builders import FeatureBuilder
 from bicis.lib.utils import get_logger
 logger = get_logger(__name__)
@@ -8,7 +9,6 @@ import redis
 from pyspark import Row
 from pyspark.sql import SparkSession
 
-from bicis.etl.build_series import SeriesBuilder
 from bicis.lib.utils import head
 
 redis_client = redis.StrictRedis()
@@ -57,14 +57,14 @@ class HourFeaturesBuilder(FeatureBuilder):
         """
         Specifies what luigi task this feature extractod depends on
         """
-        return SeriesBuilder(key='hour')
+        return BasicFeaturesBuilder(key='hour')
 
     def ensure_structure(self, force=False):
         if redis_client.get('HourFeaturesBuilder.done') and not force:
             return
 
         spark_sql = SparkSession.builder.getOrCreate()
-        input_fname = SeriesBuilder(key='hour').output().path
+        input_fname = BasicFeaturesBuilder(key='hour').output().path
 
         df = (spark_sql
             .read

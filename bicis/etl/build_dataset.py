@@ -1,7 +1,9 @@
 from bson import json_util
 from pyspark import StorageLevel
 
-from bicis.lib.utils import get_logger
+from bicis.etl.split_raw_data import DatasetSplitter
+from bicis.lib.utils import get_logger, load_csv_dataframe
+
 logger = get_logger(__name__)
 
 import json
@@ -16,9 +18,20 @@ from bicis.lib.data_paths import data_dir
 from bicis.lib.object_loader import ObjectLoader
 
 
+class BuildAllDatasets(luigi.WrapperTask):
+    config_fname = luigi.Parameter()
+
+    def requires(self):
+        return [
+            BuildDataset(self.config_fname, 'training'),
+            BuildDataset(self.config_fname, 'validation'),
+            BuildDataset(self.config_fname, 'testing'),
+        ]
+
 
 class BuildDataset(PySparkTask):
     config_fname = luigi.Parameter()
+    dataset_type = luigi.ChoiceParameter(choices=['training', 'testing', 'validation'])
 
     @property
     def object_loader(self):
@@ -41,11 +54,12 @@ class BuildDataset(PySparkTask):
             # thus this requires is delegated to the specified feature builder
             'builder_requirements': self.feature_builder.requires(),
             'target_requirements': self.target_builder.requires(),
-            'raw_data': UnifyRawData()
+            'raw_data': DatasetSplitter()
         }
 
     def output(self):
-        fname = os.path.basename(self.config_fname.replace('.yaml', ''))
+        experiment_name = os.path.basename(self.config_fname.replace('.yaml', ''))
+        fname = os.path.join(experiment_name, self.dataset_type)
         fname_prefix = os.path.join(data_dir, fname)
         return {
             'dataset': luigi.LocalTarget(fname_prefix + '_dataset.csv'),
@@ -58,7 +72,6 @@ class BuildDataset(PySparkTask):
 
         input_df = self.get_input_df(spark_sql)
         features_rdd = self.get_features_rdd(input_df)
-
         target_rdd = self.get_target_rdd(input_df)
 
         full_dataset_rdd = (
@@ -131,18 +144,7 @@ class BuildDataset(PySparkTask):
         return features_rdd
 
     def get_input_df(self, spark_sql):
-        input_df = (
-            spark_sql
-                .read
-                .load(
-                self.input()['raw_data'].path,
-                format="csv",
-                sep=",",
-                inferSchema="true",
-                header="true"
-            )
-        )
-        return input_df
+        return load_csv_dataframe(spark_sql, self.input()['raw_data'][self.dataset_type].path)
 
 
 def build_doc(id, features_doc, target_doc):
@@ -160,3 +162,7 @@ def build_doc(id, features_doc, target_doc):
     }
     res.update(features_doc.asDict())
     return res
+
+
+if __name__ == '__main__':
+    luigi.run(main_task_cls=BuildAllDatasets)
