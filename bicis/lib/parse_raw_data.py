@@ -1,3 +1,6 @@
+from bicis.lib.utils import get_logger
+
+logger = get_logger(__name__)
 import csv
 import os
 import re
@@ -105,8 +108,11 @@ def format_reader(csv_reader, row_mapping=None):
         if 'duration' in new_doc:
             new_doc['duration'] = parse_duration(new_doc['duration'])
 
-        if 'return_date' not in new_doc and new_doc.get('duration'):
-            new_doc['return_date'] = new_doc['rent_date'] + new_doc['duration']
+            if 'return_date' not in new_doc and new_doc['duration']:
+                new_doc['return_date'] = new_doc['rent_date'] + new_doc['duration']
+
+            # don't want this redundancy
+            new_doc.pop('duration')
 
         yield new_doc
 
@@ -121,14 +127,18 @@ def iter_fname(fname, n=None):
     period = int(fname.split('-')[-1].split('.')[0])
     with open(fname) as f:
         reader = csv.DictReader(f, delimiter=';')
-        iterator = format_reader(
-            reader,
-            row_mapping=row_mappings[period],
-        )
 
-        if n is not None:
-            iterator = limit(iterator, n)
+        if period not in row_mappings:
+            logger.warn("Warning, period {} not found in row_mappings, skipping...".format(period))
+        else:
+            iterator = format_reader(
+                reader,
+                row_mapping=row_mappings[period],
+            )
 
-        for doc in iterator:
-            yield doc
+            if n is not None:
+                iterator = limit(iterator, n)
+
+            for doc in iterator:
+                yield doc
 
