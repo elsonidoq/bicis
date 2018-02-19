@@ -11,3 +11,17 @@ def get_logger(name, level=logging.INFO):
     logging.root.level = level
     return logging.getLogger(name)
 
+
+def load_csv_dataframe(spark_sql, path):
+    return (
+        spark_sql
+            .read
+            .load(
+                path,
+                format="csv",
+                sep=",",
+                inferSchema="true",
+                header="true"
+        )
+    )
+
