@@ -16,39 +16,32 @@ from luigi.contrib.spark import PySparkTask
 from pyspark.sql import SparkSession
 
 from bicis.lib.data_paths import data_dir
-from bicis.lib.object_loader import ObjectLoader
+from bicis.lib.object_loader import object_loader
 
 
 class BuildAllDatasets(luigi.WrapperTask):
-    config_fname = luigi.Parameter()
-
     def requires(self):
         return [
-            BuildDataset(self.config_fname, 'training'),
-            BuildDataset(self.config_fname, 'validation'),
-            BuildDataset(self.config_fname, 'testing'),
+            BuildDataset('training'),
+            BuildDataset('validation'),
+            BuildDataset('testing'),
         ]
 
 
 
 class BuildDataset(PySparkTask):
-    config_fname = luigi.Parameter()
     dataset_type = luigi.ChoiceParameter(choices=['training', 'testing', 'validation'])
 
     @property
-    def object_loader(self):
-        return ObjectLoader.from_yaml(self.config_fname)
-
-    @property
     def feature_builder(self):
-        return self.object_loader.get('features_builder')
+        return object_loader.get('features_builder')
 
     @property
     def target_builder(self):
         """
         Returns the builder for the target class, what you want to predict
         """
-        return self.object_loader.get('target_builder')
+        return object_loader.get('target_builder')
 
     def requires(self):
         return {
@@ -59,12 +52,8 @@ class BuildDataset(PySparkTask):
             'raw_data': DatasetSplitter()
         }
 
-    @property
-    def experiment_name(self):
-        return os.path.basename(self.config_fname.replace('.yaml', ''))
-
     def output(self):
-        fname = os.path.join(self.experiment_name, self.dataset_type)
+        fname = os.path.join(object_loader.experiment_name, self.dataset_type)
         fname_prefix = os.path.join(data_dir, fname)
         return {
             'dataset': luigi.LocalTarget(fname_prefix + '_dataset.csv'),
@@ -79,12 +68,12 @@ class BuildDataset(PySparkTask):
         features_rdd = self.get_features_rdd(input_df)
         target_rdd = self.get_target_rdd(input_df)
 
-        full_dataset_rdd = (
+        full_dataset_df = (
             features_rdd
             .join(target_rdd)
-            # there are some rows without features
-            # TODO: fix this
-            .filter(lambda x: x[1][0] is not None)
+            # Depending on the target, there might be some ids without target
+            # however, there are some rows without features TODO: fix this
+            .filter(lambda (id, (features, target)): features is not None and target is not None)
 
             .map(lambda (id, (features, target)): build_doc(id, features, target))
             .toDF()
@@ -93,12 +82,12 @@ class BuildDataset(PySparkTask):
         if not self.output()['dataset'].exists():
             logger.info('Saving dataset')
 
-            full_dataset_rdd.write.csv(self.output()['dataset'].path, header='true')
+            full_dataset_df.write.csv(self.output()['dataset'].path, header='true')
 
         if not self.output()['fails'].exists():
             logger.info('Collecting some fails')
 
-            output_count = full_dataset_rdd.count()
+            output_count = full_dataset_df.count()
             input_count = input_df.count()
             error_ids = (
                 features_rdd
@@ -236,7 +225,7 @@ def build_doc(id, features_doc, target_doc):
         'target': target_doc['target']
     }
     res.update(features_doc.asDict())
-    return res
+    return Row(**res)
 
 def parse_string(s):
     if s.isdigit(): return int(s)
