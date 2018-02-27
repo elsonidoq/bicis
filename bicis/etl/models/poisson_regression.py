@@ -10,24 +10,24 @@ from sklearn.metrics import mean_squared_error
 
 from bicis.etl.feature_extraction.build_dataset import BuildDataset
 from bicis.lib.data_paths import data_dir
+from bicis.lib.object_loader import object_loader
 from bicis.lib.utils import get_logger, load_csv_dataframe
 
 logger = get_logger(__name__)
 
 
 class FitPoissonRegression(PySparkTask):
-    dataset_config = luigi.Parameter()
     iterations = luigi.IntParameter(default=1)
     link = luigi.ChoiceParameter(default='identity', choices=["log", "identity", "sqrt"])
 
     def requires(self):
-        return BuildDataset(self.dataset_config, 'training')
+        return BuildDataset('training')
 
     def output(self):
         return luigi.LocalTarget(
             os.path.join(
                 data_dir,
-                self.requires().experiment_name,
+                object_loader.experiment_name,
                 'poisson_regression/model'
             )
         )
@@ -59,7 +59,7 @@ class PredictWithPoissonRegression(PySparkTask):
     @property
     def input_dataset_task(self):
         # This property is just to reuse if on the requires method and on the main method
-        return BuildDataset(self.dataset_config, self.dataset_type)
+        return BuildDataset(self.dataset_type)
 
     def requires(self):
         return [self.clone_parent(), self.input_dataset_task]
@@ -68,7 +68,7 @@ class PredictWithPoissonRegression(PySparkTask):
         return luigi.LocalTarget(
             os.path.join(
                 data_dir,
-                self.input_dataset_task.experiment_name,
+                object_loader.experiment_name,
                 'poisson_regression/predictions/{}'.format(self.dataset_type)
             )
         )
@@ -95,7 +95,7 @@ class SquaredLoss(PySparkTask):
         return luigi.LocalTarget(
             os.path.join(
                 data_dir,
-                self.requires().input_dataset_task.experiment_name,
+                object_loader.experiment_name,
                 'poisson_regression/evaluation/{}.json'.format(self.dataset_type)
             )
         )
