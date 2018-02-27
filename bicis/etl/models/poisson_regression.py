@@ -113,3 +113,9 @@ class SquaredLoss(PySparkTask):
 
 
 
+class AllSquaredLoss(luigi.WrapperTask):
+    def requires(self):
+        return [
+            SquaredLoss(dataset_type='training'),
+            SquaredLoss(dataset_type='validation')
+        ]
