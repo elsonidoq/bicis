@@ -1,11 +1,12 @@
 import csv
 import os
 from glob import glob
+
 import luigi
 from tqdm import tqdm
 
-from bicis.etl.get_raw_data import DownloadRawData
-from bicis.lib.data_paths import data_dir, trajectories_dir
+from bicis.etl.raw_data.download import DownloadRawData
+from bicis.lib.data_paths import data_dir
 from bicis.lib.parse_raw_data import iter_fname
 from bicis.lib.utils import load_csv_dataframe
 

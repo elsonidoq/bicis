@@ -3,7 +3,7 @@ from pyspark import StorageLevel, Row
 from pyspark.ml.linalg import Vectors
 from pyspark.mllib.regression import LabeledPoint
 
-from bicis.etl.split_raw_data import DatasetSplitter
+from bicis.etl.raw_data.split import DatasetSplitter
 from bicis.lib.utils import get_logger, load_csv_dataframe
 
 logger = get_logger(__name__)

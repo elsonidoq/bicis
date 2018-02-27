@@ -6,7 +6,7 @@ from luigi.contrib.spark import PySparkTask
 from pyspark.sql import Row
 from pyspark.sql import SparkSession
 
-from bicis.etl.split_raw_data import DatasetSplitter
+from bicis.etl.raw_data.split import DatasetSplitter
 from bicis.lib.data_paths import data_dir
 from bicis.lib.utils import load_csv_dataframe
 

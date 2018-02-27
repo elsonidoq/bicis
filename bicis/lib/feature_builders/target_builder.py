@@ -1,7 +1,7 @@
 from bicis.lib.utils import get_logger
 logger = get_logger(__name__)
 
-from bicis.etl.next_window_target import NextWindowTarget
+from bicis.etl.feature_extraction.next_window_target import NextWindowTarget
 from bicis.lib.feature_builders.base_builders import FeatureBuilder
 
 import redis

@@ -1,15 +1,14 @@
 import json
 import os
 
-import pandas as pd
 import luigi
+import pandas as pd
 from bson import json_util
 from luigi.contrib.spark import PySparkTask
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import max as max_
 
-from bicis.etl.unify_raw_data import UnifyRawData
-from pyspark.sql.functions import col, max as max_
-
+from bicis.etl.raw_data.unify import UnifyRawData
 from bicis.lib.data_paths import data_dir
 
 

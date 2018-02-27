@@ -1,4 +1,4 @@
-from bicis.etl.basic_features import BasicFeaturesBuilder
+from bicis.etl.feature_extraction.basic_features import BasicFeaturesBuilder
 from bicis.lib.feature_builders.base_builders import FeatureBuilder
 from bicis.lib.utils import get_logger
 logger = get_logger(__name__)
