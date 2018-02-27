@@ -1,35 +1,56 @@
+import os
 import traceback
+import warnings
 
+import luigi
 import yaml
 
 
-class ObjectLoader(object):
-    def __init__(self, bindings):
+class ObjectLoader(luigi.Config):
+    fname = luigi.Parameter()
+
+    def __init__(self, *args, **kwargs):
+        super(ObjectLoader, self).__init__(*args, **kwargs)
+
+        with open(self.fname) as f:
+            bindings = yaml.load(f)
+
         self.bindings = {}
         self.instances = {}
         for name, conf in bindings.iteritems():
-            type = obj_from_path(conf.pop('type'))
-            self.bindings[name] = {
-                'type': type,
-                'kwargs': conf
-            }
+            if isinstance(conf, dict):
+                self.bindings[name] = {
+                    'type': conf.pop('type'),
+                    'kwargs': conf
+                }
+            else:
+                self.bindings[name] = conf
 
     def get(self, name):
         if name in self.instances: return self.instances[name]
 
-        kwargs = self.bindings[name]['kwargs']
+        binding = self.bindings[name]
+        kwargs = {}
 
-        for k, v in kwargs.iteritems():
+        for k, v in binding['kwargs'].iteritems():
             if isinstance(v, basestring) and v.startswith('$'):
                 kwargs[k] = self.get(v[1:])
 
-        res = self.instances[name] = self.bindings[name]['type'](**kwargs)
+        binding_type = obj_from_path(binding['type'])
+        res = self.instances[name] = binding_type(**kwargs)
         return res
+
+    @property
+    def experiment_name(self):
+        # the experiment_name defaults to the name of the file
+        return self.bindings.get('experiment_name', os.path.basename(self.fname.replace('.yaml', '')))
 
     @classmethod
     def from_yaml(cls, fname):
-        with open(fname) as f:
-            return cls(yaml.load(f))
+        warnings.warn('DEPRECATED')
+        return cls(fname)
+
+
 
 def obj_from_path(path):
     """
@@ -38,8 +59,6 @@ def obj_from_path(path):
     Examples:
     >>> obj_from_path('pandas')
     <module 'pandas'>
-    >>> obj_from_path('fito.specs')
-    <module 'pandas.core'>
     >>> obj_from_path('pandas.core.series:Series')
     pandas.core.series.Series
     >>> obj_from_path('pandas.core.series:Series.abs')
@@ -65,3 +84,5 @@ def obj_from_path(path):
     for i, attr in enumerate(obj_path):
         obj = getattr(obj, attr)
     return obj
+
+object_loader = ObjectLoader()
