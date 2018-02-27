@@ -1,22 +1,22 @@
 import os
 from functools import partial
 
-from pyspark.sql import Row
 import luigi
 from luigi.contrib.spark import PySparkTask
+from pyspark.sql import Row
 from pyspark.sql import SparkSession
 
 from bicis.etl.split_raw_data import DatasetSplitter
-from bicis.etl.unify_raw_data import UnifyRawData
 from bicis.lib.data_paths import data_dir
 from bicis.lib.utils import load_csv_dataframe
+
 
 class BasicFeaturesBuilder(PySparkTask):
     """
     Builds a series for each station that can be used as a feature vector.
     :param key: Determines the x axis of the series.
 
-    Outputs a csv file with this columns: [station, <key>, n_rents, n_returns]
+    Outputs a csv file with this columns: [station, <key>, avg_n_rents, avg_n_returns]
     Both `n_rents` and `n_returns` on the output csv are averages on the training data
     """
     key = luigi.ChoiceParameter(choices=['weekday', 'hour', 'month'])
