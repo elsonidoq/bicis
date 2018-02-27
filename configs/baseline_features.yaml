@@ -5,3 +5,5 @@ target_builder:
   type: bicis.lib.feature_builders.target_builder:TargetFeatureBuilder
   mode: rent
   window: 1h
+
+experiment_name: experiments/1h_rents
