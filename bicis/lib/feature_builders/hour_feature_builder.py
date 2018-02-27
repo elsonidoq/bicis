@@ -1,6 +1,7 @@
 from bicis.etl.feature_extraction.basic_features import BasicFeaturesBuilder
 from bicis.lib.feature_builders.base_builders import FeatureBuilder
-from bicis.lib.utils import get_logger
+from bicis.lib.utils import get_logger, load_csv_dataframe
+
 logger = get_logger(__name__)
 
 from itertools import chain
@@ -40,12 +41,8 @@ class HourFeaturesBuilder(FeatureBuilder):
         res = {}
         for i, hour in enumerate(indices):
             hour_data = redis_client.hgetall(self._get_station_hour_key(hour, station))
-            try:
-                res['n_rents_{}_hb'.format(i)] = float(hour_data['n_rents'])
-                res['n_returns_{}_hb'.format(i)] = float(hour_data['n_returns'])
-            except Exception, e:
-                logger.warn(u'station {} on hour {} has a weird thing'.format(station, hour))
-                return
+            res['n_rents_{}_hb'.format(i)] = float(hour_data['n_rents'])
+            res['n_returns_{}_hb'.format(i)] = float(hour_data['n_returns'])
 
         # XXX should it return the dict or the row?
         return Row(**res)
@@ -66,32 +63,27 @@ class HourFeaturesBuilder(FeatureBuilder):
         spark_sql = SparkSession.builder.getOrCreate()
         input_fname = BasicFeaturesBuilder(key='hour').output().path
 
-        df = (spark_sql
-            .read
-            .load(
-            input_fname,
-            format="csv",
-            sep=",",
-            inferSchema="true",
-            header="true")
-        ).toPandas()
+        df = load_csv_dataframe(spark_sql, input_fname).toPandas()
 
         n_rents_by_hour = df.pivot(index='station', columns='hour', values='n_rents')
         n_returns_by_hour = df.pivot(index='station', columns='hour', values='n_returns')
 
         # TODO: check whether the `fillna(0)` actually makes sense
         n_returns_by_hour = n_returns_by_hour.fillna(0).to_dict('index')
-        for station, rent_data in n_rents_by_hour.fillna(0).to_dict('index').iteritems():
+        for station, rents_data in n_rents_by_hour.fillna(0).to_dict('index').iteritems():
             returns_data = n_returns_by_hour[station]
 
-            for hour, n_rents in rent_data.iteritems():
+            # force the number of hours so it can be tested with small data
+            for hour in xrange(24):
                 doc = {
-                    'n_rents': float(n_rents),
-                    'n_returns': float(returns_data[hour])
+                    'n_rents': float(rents_data.get(hour, 0)),
+                    'n_returns': float(returns_data.get(hour, 0))
                 }
 
+                key =  self._get_station_hour_key(hour, station)
+
                 redis_client.hmset(
-                    self._get_station_hour_key(hour, station),
+                    key,
                     doc
                 )
 
