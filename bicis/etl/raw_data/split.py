@@ -3,7 +3,6 @@ import os
 
 import luigi
 import pandas as pd
-from bson import json_util
 from luigi.contrib.spark import PySparkTask
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import max as max_
@@ -26,7 +25,7 @@ class DatasetSplitter(PySparkTask):
             'training': luigi.LocalTarget(os.path.join(data_dir, 'unified/training.csv')),
             'validation': luigi.LocalTarget(os.path.join(data_dir, 'unified/validation.csv')),
             'testing': luigi.LocalTarget(os.path.join(data_dir, 'unified/testing.csv')),
-            'metadata': luigi.LocalTarget(os.path.join(data_dir, 'unified/metadata.json'))
+            'metadata': luigi.LocalTarget(os.path.join(data_dir, 'unified/split_metadata.json'))
         }
 
     def main(self, sc, *args):
@@ -75,15 +74,14 @@ class DatasetSplitter(PySparkTask):
         with self.output()['metadata'].open('w') as f:
             json.dump(
                 {
-                    'training_end_date': training_end_date,
-                    'validation_start_date': validation_start_date,
-                    'validation_end_date': validation_end_date,
-                    'testing_start_date': testing_start_date,
-                    'testing_end_date': testing_end_date,
+                    'training_end_date': training_end_date.isoformat(),
+                    'validation_start_date': validation_start_date.isoformat(),
+                    'validation_end_date': validation_end_date.isoformat(),
+                    'testing_start_date': testing_start_date.isoformat(),
+                    'testing_end_date': testing_end_date.isoformat(),
                 },
                 f,
                 indent=2,
-                default=json_util.default
             )
 
 
