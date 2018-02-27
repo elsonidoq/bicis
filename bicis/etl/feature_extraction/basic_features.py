@@ -31,7 +31,7 @@ class BasicFeaturesBuilder(PySparkTask):
         spark_sql = SparkSession.builder.getOrCreate()
 
         general_df = (
-            load_csv_dataframe(spark_sql, self.requires().output()['training'].path)
+            load_csv_dataframe(spark_sql, self.input()['training'].path)
             .rdd
             .map(partial(_add_keys, key=self.key))
             .toDF()
