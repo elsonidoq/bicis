@@ -50,7 +50,7 @@ class HourFeaturesBuilder(FeatureBuilder):
     def _get_station_hour_key(self, hour, station):
         return u'{}_{}'.format(station, hour)
 
-    def requires(self):
+    def requirements(self):
         """
         Specifies what luigi task this feature extractod depends on
         """

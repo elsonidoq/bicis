@@ -26,7 +26,7 @@ class FeatureBuilder:
         """
         pass
 
-    def requires(self):
+    def requirements(self):
         """
         Specifies requirements for this feature builder to run. This requirements are luigi tasks
         that the BuildDataset task adds to its requirements
@@ -56,6 +56,6 @@ class CompositeBuilder(FeatureBuilder):
 
         return Row(**res)
 
-    def requires(self):
+    def requirements(self):
         return flatten([b.requires() for b in self.builders])
 

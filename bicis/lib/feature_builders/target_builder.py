@@ -22,9 +22,10 @@ class TargetFeatureBuilder(FeatureBuilder):
         super(TargetFeatureBuilder, self).__init__()
 
     def get_features(self, raw_doc):
-        return {'target': redis_client.get(self._get_key_field(raw_doc.id))}
+        res = redis_client.get(self._get_key_field(raw_doc.id))
+        return {'target': res}
 
-    def requires(self):
+    def requirements(self):
         return NextWindowTarget(mode=self.mode, window=self.window)
 
     def ensure_structure(self):
@@ -32,7 +33,7 @@ class TargetFeatureBuilder(FeatureBuilder):
             return
 
         spark_sql = SparkSession.builder.getOrCreate()
-        input_fname = self.requires().output().path
+        input_fname = self.requirements().output().path
 
         rows_iterator = (spark_sql
             .read
@@ -47,7 +48,7 @@ class TargetFeatureBuilder(FeatureBuilder):
         for row in rows_iterator:
             redis_client.set(
                 self._get_key_field(row.id),
-                row[self.requires().output_field]
+                row[self.requirements().output_field]
             )
 
         redis_client.set('TargetFeatureBuilder.done', 1)

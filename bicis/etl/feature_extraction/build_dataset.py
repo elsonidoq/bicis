@@ -47,8 +47,8 @@ class BuildDataset(PySparkTask):
         return {
             # Each feature builder depends on different datasets,
             # thus this requires is delegated to the specified feature builder
-            'builder_requirements': self.feature_builder.requires(),
-            'target_requirements': self.target_builder.requires(),
+            'builder_requirements': self.feature_builder.requirements(),
+            'target_requirements': self.target_builder.requirements(),
             'raw_data': DatasetSplitter()
         }
 
