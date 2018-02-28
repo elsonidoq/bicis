@@ -1,37 +1,18 @@
-import json
-import os
-
 import luigi
-from luigi.contrib.spark import PySparkTask
 from luigi.util import inherits
 from pyspark.ml.regression import GeneralizedLinearRegression, GeneralizedLinearRegressionModel
 from pyspark.sql import SparkSession
-from sklearn.metrics import mean_squared_error
 
-from bicis.etl.feature_extraction.build_dataset import BuildDataset
-from bicis.lib.data_paths import data_dir
-from bicis.lib.object_loader import object_loader
-from bicis.lib.utils import get_logger, load_csv_dataframe
+from bicis.etl.models.interface import PredictTask, FitModelTask
+from bicis.lib.utils import get_logger
 
 logger = get_logger(__name__)
 
 
-class FitPoissonRegression(PySparkTask):
+class FitPoissonRegression(FitModelTask):
     iterations = luigi.IntParameter(default=1)
     link = luigi.ChoiceParameter(default='identity', choices=["log", "identity", "sqrt"])
-
-    def requires(self):
-        return BuildDataset('training')
-
-    def output(self):
-        return luigi.LocalTarget(
-            os.path.join(
-                data_dir,
-                object_loader.experiment_name,
-                'poisson_regression/model'
-            )
-        )
-
+    model_name = 'poisson_regression'
 
     def main(self, sc, *args):
         points_rdd = self.requires().get_points_rdd(sc)
@@ -44,34 +25,15 @@ class FitPoissonRegression(PySparkTask):
 
         spark_sql = SparkSession.builder.getOrCreate()
         model = model.fit(spark_sql.createDataFrame(points_rdd))
-
         model.save(self.output().path)
-        self.load_model(sc)
 
     def load_model(self, sc):
         return GeneralizedLinearRegressionModel.load(self.output().path)
 
 
 @inherits(FitPoissonRegression)
-class PredictWithPoissonRegression(PySparkTask):
-    dataset_type = luigi.ChoiceParameter(choices=['training', 'testing', 'validation'])
-
-    @property
-    def input_dataset_task(self):
-        # This property is just to reuse if on the requires method and on the main method
-        return BuildDataset(self.dataset_type)
-
-    def requires(self):
-        return [self.clone_parent(), self.input_dataset_task]
-
-    def output(self):
-        return luigi.LocalTarget(
-            os.path.join(
-                data_dir,
-                object_loader.experiment_name,
-                'poisson_regression/predictions/{}'.format(self.dataset_type)
-            )
-        )
+class PredictWithPoissonRegression(PredictTask):
+    model_name = FitPoissonRegression.model_name
 
     def main(self, sc, *args):
         points_rdd = self.input_dataset_task.get_points_rdd(sc)
@@ -86,36 +48,3 @@ class PredictWithPoissonRegression(PySparkTask):
         )
 
 
-@inherits(PredictWithPoissonRegression)
-class SquaredLoss(PySparkTask):
-    def requires(self):
-        return self.clone_parent()
-
-    def output(self):
-        return luigi.LocalTarget(
-            os.path.join(
-                data_dir,
-                object_loader.experiment_name,
-                'poisson_regression/evaluation/{}.json'.format(self.dataset_type)
-            )
-        )
-
-    def main(self, sc, *args):
-        spark_sql = SparkSession.builder.getOrCreate()
-        df = load_csv_dataframe(spark_sql, self.input().path).toPandas()
-
-        with self.output().open('w') as f:
-            json.dump(
-                {
-                    'mean_squared_error': mean_squared_error(df.label, df.prediction)
-                }, f, indent=2
-            )
-
-
-
-class AllSquaredLoss(luigi.WrapperTask):
-    def requires(self):
-        return [
-            SquaredLoss(dataset_type='training'),
-            SquaredLoss(dataset_type='validation')
-        ]
