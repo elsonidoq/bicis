@@ -6,4 +6,10 @@ target_builder:
   mode: rent
   window: 1h
 
+prediction_task:
+  type: bicis.etl.models.poisson_regression:PredictWithPoissonRegression
+
+metrics:
+  - sklearn.metrics:mean_squared_error
+
 experiment_name: experiments/1h_rents
