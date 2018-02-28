@@ -18,7 +18,7 @@ class ObjectLoader(luigi.Config):
         self.bindings = {}
         self.instances = {}
         for name, conf in bindings.iteritems():
-            if isinstance(conf, dict):
+            if isinstance(conf, dict) and 'type' in conf:
                 self.bindings[name] = {
                     'type': conf.pop('type'),
                     'kwargs': conf
@@ -26,18 +26,25 @@ class ObjectLoader(luigi.Config):
             else:
                 self.bindings[name] = conf
 
-    def get(self, name):
-        if name in self.instances: return self.instances[name]
+    def get(self, name, **custom_kwargs):
+        if name in self.instances and not custom_kwargs: return self.instances[name]
 
         binding = self.bindings[name]
+        # only instance dicts with type
+        if not isinstance(binding, dict) or 'type' not in binding: return binding
+
         kwargs = {}
 
         for k, v in binding['kwargs'].iteritems():
             if isinstance(v, basestring) and v.startswith('$'):
                 kwargs[k] = self.get(v[1:])
 
+        kwargs.update(custom_kwargs)
+
         binding_type = obj_from_path(binding['type'])
-        res = self.instances[name] = binding_type(**kwargs)
+        res = binding_type(**kwargs)
+
+        if not custom_kwargs: self.instances[name] = res
         return res
 
     @property
