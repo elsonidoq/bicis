@@ -57,7 +57,8 @@ class HourFeaturesBuilder(FeatureBuilder):
         return BasicFeaturesBuilder(key='hour')
 
     def ensure_structure(self, force=False):
-        if redis_client.get('HourFeaturesBuilder.done') and not force:
+        done_key = 'HourFeaturesBuilder(mode={}, window_size={}).done'.format(self.mode, self.window_size)
+        if redis_client.get(done_key) and not force:
             return
 
         spark_sql = SparkSession.builder.getOrCreate()
@@ -88,4 +89,4 @@ class HourFeaturesBuilder(FeatureBuilder):
                 )
 
 
-        redis_client.set('HourFeaturesBuilder.done', 1)
+        redis_client.set(done_key, 1)

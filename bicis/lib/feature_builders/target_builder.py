@@ -17,9 +17,9 @@ class TargetFeatureBuilder(FeatureBuilder):
         """
         :param mode: whether to use the `rent` fields or the `return` fields on the raw_doc
         """
+        super(TargetFeatureBuilder, self).__init__()
         self.window = window
         self.mode = mode
-        super(TargetFeatureBuilder, self).__init__()
 
     def get_features(self, raw_doc):
         res = redis_client.get(self._get_key_field(raw_doc.id))
@@ -29,7 +29,8 @@ class TargetFeatureBuilder(FeatureBuilder):
         return NextWindowTarget(mode=self.mode, window=self.window)
 
     def ensure_structure(self):
-        if redis_client.get('TargetFeatureBuilder.done'):
+        done_key = 'TargetFeatureBuilder(mode={}, window={}).done'.format(self.mode, self.window)
+        if redis_client.get(done_key):
             return
 
         spark_sql = SparkSession.builder.getOrCreate()
@@ -51,7 +52,7 @@ class TargetFeatureBuilder(FeatureBuilder):
                 row[self.requirements().output_field]
             )
 
-        redis_client.set('TargetFeatureBuilder.done', 1)
+        redis_client.set(done_key, 1)
 
     def _get_key_field(self, id):
         return '{}_id={}'.format(type(self), id)
