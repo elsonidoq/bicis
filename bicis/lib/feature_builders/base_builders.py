@@ -5,11 +5,8 @@ from bicis.lib.utils import get_logger
 
 logger = get_logger(__name__)
 
-import redis
 from luigi.task import flatten
 from pyspark import Row
-
-redis_client = redis.StrictRedis()
 
 class FeatureBuilder:
     __metaclass__ = ABCMeta
