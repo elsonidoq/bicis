@@ -38,6 +38,8 @@ class ObjectLoader(luigi.Config):
         for k, v in binding['kwargs'].iteritems():
             if isinstance(v, basestring) and v.startswith('$'):
                 kwargs[k] = self.get(v[1:])
+            else:
+                kwargs[k] = v
 
         kwargs.update(custom_kwargs)
 
